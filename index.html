@@ -19,7 +19,7 @@
 
         .chat-container {
             width: 100%;
-            max-width: 600px;
+            max-width: 800px;
             height: 100vh;
             background-color: #ebebeb;
             display: flex;
@@ -76,13 +76,22 @@
         }
 
         .message-bubble {
-            max-width: 75%;
+            max-width: 85%;
             padding: 10px 14px;
             border-radius: 8px;
             font-size: 15px;
             line-height: 1.5;
             word-wrap: break-word;
+        }
+
+        /* 用户消息保留 pre-wrap（纯文本，需要保留换行） */
+        .message.user .message-bubble {
             white-space: pre-wrap;
+        }
+
+        /* AI 消息用 normal（marked.js 渲染的 HTML 自带标签控制间距） */
+        .message.ai .message-bubble {
+            white-space: normal;
         }
 
         .message.user .message-bubble {
@@ -111,8 +120,10 @@
         }
 
         /* Markdown 样式 */
-        .message.ai .message-bubble p { margin: 0 0 8px 0; }
+        .message.ai .message-bubble p { margin: 0 0 6px 0; }
+        .message.ai .message-bubble p:empty { display: none; }          /* 隐藏空段落 */
         .message.ai .message-bubble p:last-child { margin-bottom: 0; }
+        .message.ai .message-bubble hr { margin: 8px 0; border: none; border-top: 1px solid #e0e0e0; }
         .message.ai .message-bubble strong { color: #1a1a1a; }
         .message.ai .message-bubble code {
             background: #f0f0f0; padding: 2px 6px;
