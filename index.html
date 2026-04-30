@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>费曼学习助手</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f5f5f5;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .chat-container {
+            width: 100%;
+            max-width: 600px;
+            height: 100vh;
+            background-color: #ebebeb;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        .chat-header {
+            background-color: #2c2c2c;
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: bold;
+            flex-shrink: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .new-chat-btn {
+            background: transparent;
+            color: #aaa;
+            border: 1px solid #555;
+            border-radius: 4px;
+            padding: 4px 12px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .new-chat-btn:hover { color: #fff; border-color: #fff; }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .message {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 16px;
+        }
+
+        .message.user { align-items: flex-end; }
+        .message.ai  { align-items: flex-start; }
+
+        .msg-time {
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+            margin: 8px 0 4px;
+            align-self: center;
+        }
+
+        .message-bubble {
+            max-width: 75%;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 15px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        .message.user .message-bubble {
+            background-color: #95ec69;
+            color: #000;
+            border-top-right-radius: 2px;
+        }
+
+        .message.ai .message-bubble {
+            background-color: #ffffff;
+            color: #000;
+            border-top-left-radius: 2px;
+            position: relative;
+        }
+
+        /* 流式输出时的闪烁光标 */
+        .streaming-cursor::after {
+            content: '▌';
+            color: #07c160;
+            animation: blink 0.7s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0; }
+        }
+
+        /* Markdown 样式 */
+        .message.ai .message-bubble p { margin: 0 0 8px 0; }
+        .message.ai .message-bubble p:last-child { margin-bottom: 0; }
+        .message.ai .message-bubble strong { color: #1a1a1a; }
+        .message.ai .message-bubble code {
+            background: #f0f0f0; padding: 2px 6px;
+            border-radius: 3px; font-size: 13px;
+            font-family: Consolas, monospace;
+        }
+        .message.ai .message-bubble pre {
+            background: #2d2d2d; color: #f8f8f2;
+            padding: 12px; border-radius: 6px;
+            overflow-x: auto; margin: 8px 0;
+            position: relative;
+        }
+        .message.ai .message-bubble pre code {
+            background: none; padding: 0;
+            color: inherit; font-size: 13px;
+        }
+        .message.ai .message-bubble ul,
+        .message.ai .message-bubble ol {
+            padding-left: 20px; margin: 8px 0;
+        }
+        .message.ai .message-bubble blockquote {
+            border-left: 3px solid #95ec69;
+            padding-left: 12px; margin: 8px 0; color: #666;
+        }
+
+        /* 代码块复制按钮 */
+        .copy-btn {
+            position: absolute; top: 8px; right: 8px;
+            background: #555; color: #ccc;
+            border: none; border-radius: 4px;
+            padding: 4px 10px; font-size: 12px;
+            cursor: pointer; opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .message.ai .message-bubble pre:hover .copy-btn { opacity: 1; }
+        .copy-btn:hover { background: #777; }
+        .copy-btn.copied { background: #4caf50; color: #fff; }
+
+        /* 整条回复复制按钮 */
+        .reply-copy-btn {
+            position: absolute; top: 6px; right: 6px;
+            background: transparent;
+            border: 1px solid #ddd; border-radius: 4px;
+            color: #999; font-size: 12px; cursor: pointer;
+            opacity: 0; transition: opacity 0.2s;
+            padding: 2px 8px; z-index: 1;
+        }
+        .message.ai .message-bubble:hover .reply-copy-btn { opacity: 1; }
+        .reply-copy-btn:hover { color: #333; border-color: #999; }
+        .reply-copy-btn.copied { color: #4caf50; border-color: #4caf50; }
+
+        /* 输入区 */
+        .chat-input {
+            display: flex; padding: 12px 16px;
+            background-color: #f5f5f5;
+            border-top: 1px solid #d9d9d9;
+            flex-shrink: 0;
+        }
+
+        .chat-input input {
+            flex: 1; padding: 10px 14px;
+            border: 1px solid #d9d9d9; border-radius: 6px;
+            font-size: 15px; outline: none;
+            background-color: #fff;
+        }
+
+        .chat-input input:focus { border-color: #2c2c2c; }
+
+        .chat-input button {
+            margin-left: 10px; padding: 10px 20px;
+            background-color: #2c2c2c; color: white;
+            border: none; border-radius: 6px;
+            font-size: 15px; cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .chat-input button:hover { background-color: #444; }
+        .chat-input button:active { background-color: #111; }
+        .chat-input button:disabled { background-color: #a0a0a0; cursor: not-allowed; }
+
+        /* 侧边栏 */
+        .sidebar {
+            position: fixed; left: 0; top: 0;
+            width: 280px; height: 100%;
+            background-color: #1e1e1e; z-index: 20;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+            display: flex; flex-direction: column;
+        }
+
+        .sidebar.open { transform: translateX(0); }
+
+        .sidebar-header {
+            display: flex; justify-content: space-between;
+            align-items: center; padding: 15px 16px;
+            color: #fff; font-size: 16px; font-weight: bold;
+            border-bottom: 1px solid #333;
+        }
+
+        .sidebar-close-btn {
+            background: transparent; color: #aaa;
+            border: none; font-size: 18px; cursor: pointer;
+        }
+
+        .sidebar-close-btn:hover { color: #fff; }
+
+        .sidebar-list {
+            flex: 1; overflow-y: auto; padding: 8px;
+        }
+
+        .history-item {
+            display: flex; justify-content: space-between;
+            align-items: center; padding: 12px;
+            border-radius: 8px; cursor: pointer;
+            margin-bottom: 4px; transition: background-color 0.2s;
+        }
+
+        .history-item:hover { background-color: #2a2a2a; }
+
+        .history-item .history-title {
+            color: #e0e0e0; font-size: 14px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        .history-item .history-time { color: #888; font-size: 12px; margin-top: 4px; }
+
+        .history-info { flex: 1; min-width: 0; }
+
+        .delete-btn {
+            background: transparent; color: #666; border: none;
+            font-size: 14px; cursor: pointer; opacity: 0;
+            transition: opacity 0.2s; flex-shrink: 0; padding: 4px;
+        }
+
+        .history-item:hover .delete-btn { opacity: 1; }
+        .delete-btn:hover { color: #ff4444; }
+
+        /* 遮罩层 */
+        .overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.5); z-index: 10;
+            display: none;
+        }
+
+        .overlay.show { display: block; }
+
+        .history-btn {
+            background: transparent; color: #aaa;
+            border: none; font-size: 20px; cursor: pointer; padding: 0 8px 0 0;
+        }
+
+        .history-btn:hover { color: #fff; }
+
+        /* 正在输入动画 */
+        .typing-dots span {
+            display: inline-block; width: 6px; height: 6px;
+            background-color: #999; border-radius: 50%;
+            margin-right: 4px; animation: bounce 1.2s infinite;
+        }
+
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes bounce {
+            0%, 60%, 100% { transform: translateY(0); }
+            30%            { transform: translateY(-6px); }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <button class="history-btn">📜</button>
+            <span>🎓 费曼学习助手</span>
+            <button class="new-chat-btn">＋ 新会话</button>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            <div class="message ai">
+                <div class="message-bubble">
+                    你好！我是你的费曼学习导师 🎓<br>
+                    输入一个你不懂的概念，我用大白话给你讲明白！
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-input">
+            <input type="text" id="userInput" placeholder="输入你想了解的概念..." />
+            <button id="sendBtn">发送</button>
+        </div>
+    </div>
+
+    <div class="overlay" id="overlay"></div>
+
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <span>📜 历史记录</span>
+            <button class="sidebar-close-btn" id="sidebarCloseBtn">✕</button>
+        </div>
+        <div class="sidebar-list" id="historyList"></div>
+    </div>
+
+    <script>
+        // ===== DOM 元素 =====
+        const chatMessages  = document.getElementById('chatMessages');
+        const userInput    = document.getElementById('userInput');
+        const sendBtn      = document.getElementById('sendBtn');
+        const sidebar      = document.getElementById('sidebar');
+        const overlay      = document.getElementById('overlay');
+        const historyList  = document.getElementById('historyList');
+        const sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
+        const historyBtn   = document.querySelector('.history-btn');
+        const newChatBtn   = document.querySelector('.new-chat-btn');
+
+        // ===== 状态变量 =====
+        let conversationHistory      = [];     // 对话历史（含 role）
+        let lastMessageTimestamp     = null;    // 上一条消息时间戳（分组用）
+        let currentStreamingBubble   = null;    // 当前正在流式输出的气泡 DOM 引用
+        let currentStreamingText     = '';      // 当前流式输出的累积纯文本
+
+        // ===== 时间格式化 =====
+        function formatTime(timestamp) {
+            const now   = Date.now();
+            const diff  = now - timestamp;
+            const date  = new Date(timestamp);
+            const today = new Date();
+
+            const isToday     = date.toDateString() === today.toDateString();
+            const yesterday   = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            const isYesterday = date.toDateString() === yesterday.toDateString();
+
+            const h = date.getHours().toString().padStart(2, '0');
+            const m = date.getMinutes().toString().padStart(2, '0');
+            const timeStr = h + ':' + m;
+
+            if (diff < 60000)                               return '刚刚';
+            if (diff < 3600000)  return Math.floor(diff / 60000) + '分钟前';
+            if (isToday)         return timeStr;
+            if (isYesterday)     return '昨天 ' + timeStr;
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const day   = date.getDate().toString().padStart(2, '0');
+            return month + '/' + day + ' ' + timeStr;
+        }
+
+        // ===== 插入时间分组标签 =====
+        function appendTimeLabel(timestamp) {
+            const show = !lastMessageTimestamp || (timestamp - lastMessageTimestamp >= 5 * 60 * 1000);
+            if (show) {
+                const timeDiv = document.createElement('div');
+                timeDiv.classList.add('msg-time');
+                timeDiv.textContent = formatTime(timestamp);
+                chatMessages.appendChild(timeDiv);
+            }
+            lastMessageTimestamp = timestamp;
+        }
+
+        // ===== 添加用户消息气泡 =====
+        function addUserMessage(text, timestamp) {
+            appendTimeLabel(timestamp);
+            const div = document.createElement('div');
+            div.classList.add('message', 'user');
+            const bubble = document.createElement('div');
+            bubble.classList.add('message-bubble');
+            bubble.textContent = text;
+            div.appendChild(bubble);
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // ===== 创建流式 AI 气泡（返回 {div, bubble}） =====
+        function createStreamingBubble(timestamp) {
+            appendTimeLabel(timestamp);
+            const div    = document.createElement('div');
+            const bubble = document.createElement('div');
+            div.classList.add('message', 'ai');
+            bubble.classList.add('message-bubble', 'streaming-cursor');
+            div.appendChild(bubble);
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            return { div, bubble };
+        }
+
+        // ===== 更新流式气泡内容（追加新文本） =====
+        function updateStreamingBubble(bubble, newText) {
+            bubble.textContent = newText;
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // ===== 完成流式气泡：Markdown 渲染 + 复制按钮 =====
+        function finalizeStreamingBubble(bubble, fullText) {
+            // 移除闪烁光标
+            bubble.classList.remove('streaming-cursor');
+            // Markdown 渲染
+            bubble.innerHTML = marked.parse(fullText);
+
+            // 代码块复制按钮
+            bubble.querySelectorAll('pre').forEach(function(pre) {
+                const btn = document.createElement('button');
+                btn.classList.add('copy-btn');
+                btn.textContent = '复制';
+                btn.addEventListener('click', function() {
+                    const code = pre.querySelector('code');
+                    const codeText = code ? code.textContent : pre.textContent;
+                    navigator.clipboard.writeText(codeText);
+                    btn.textContent = '已复制 ✓';
+                    btn.classList.add('copied');
+                    setTimeout(function() {
+                        btn.textContent = '复制';
+                        btn.classList.remove('copied');
+                    }, 2000);
+                });
+                pre.appendChild(btn);
+            });
+
+            // 整条回复复制按钮
+            const replyBtn = document.createElement('button');
+            replyBtn.classList.add('reply-copy-btn');
+            replyBtn.textContent = '📋';
+            replyBtn.title = '复制回复';
+            replyBtn.addEventListener('click', function() {
+                navigator.clipboard.writeText(fullText);
+                replyBtn.textContent = '✓';
+                replyBtn.classList.add('copied');
+                setTimeout(function() {
+                    replyBtn.textContent = '📋';
+                    replyBtn.classList.remove('copied');
+                }, 2000);
+            });
+            bubble.appendChild(replyBtn);
+
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // ===== 显示错误气泡 =====
+        function showErrorBubble(text, timestamp) {
+            appendTimeLabel(timestamp);
+            const div    = document.createElement('div');
+            const bubble = document.createElement('div');
+            div.classList.add('message', 'ai');
+            bubble.classList.add('message-bubble');
+            bubble.textContent = text;
+            div.appendChild(bubble);
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // ===== 发送消息（核心：流式读取） =====
+        async function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+            if (sendBtn.disabled) return;  // 防止重复发送
+
+            const userTimestamp = Date.now();
+
+            // 显示用户消息
+            addUserMessage(text, userTimestamp);
+            conversationHistory.push({ role: 'user', content: text, timestamp: userTimestamp });
+            userInput.value = '';
+            sendBtn.disabled = true;
+
+            // ★★★ 核心：创建流式气泡 ★★★
+            const aiTimestamp = Date.now();
+            const { bubble: streamingBubble } = createStreamingBubble(aiTimestamp);
+            currentStreamingBubble = streamingBubble;
+            currentStreamingText   = '';
+
+            try {
+                // ★★★ 流式读取 SSE ★★★
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messages: conversationHistory })
+                });
+
+                const reader    = response.body.getReader();
+                const decoder   = new TextDecoder('utf-8');
+                let   buffer    = '';   // 存放未处理完的文本片段
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    // 把读取到的字节流转成字符串，拼到 buffer 里
+                    buffer += decoder.decode(value, { stream: true });
+
+                    // 逐行处理 buffer
+                    // SSE 格式：data: {...}\n\n
+                    let lines = buffer.split('\n');
+                    // 最后一行可能是不完整的（还没收到完整的 \n\n），先存起来
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const dataStr = line.slice(6);   // 去掉 "data: " 前缀
+
+                            // 流结束标记
+                            if (dataStr.trim() === '[DONE]') {
+                                // 解析最后一块（可能还在 bubble 里），然后完成
+                                if (currentStreamingText) {
+                                    finalizeStreamingBubble(currentStreamingBubble, currentStreamingText);
+                                }
+                                currentStreamingBubble = null;
+
+                                // 保存到历史记录
+                                conversationHistory.push({
+                                    role: 'assistant',
+                                    content: currentStreamingText,
+                                    timestamp: aiTimestamp
+                                });
+                                saveCurrent();
+                                break;
+                            }
+
+                            // 解析 JSON，提取 delta.content
+                            try {
+                                const data     = JSON.parse(dataStr);
+                                const delta    = data.choices?.[0]?.delta?.content;
+                                if (delta) {
+                                    currentStreamingText += delta;
+                                    updateStreamingBubble(currentStreamingBubble, currentStreamingText);
+                                }
+                            } catch (e) {
+                                // 解析失败就跳过（可能是心跳/注释等）
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                // 网络错误时，清理流式气泡，显示错误
+                if (currentStreamingBubble && currentStreamingBubble.parentNode) {
+                    currentStreamingBubble.parentNode.remove();
+                }
+                currentStreamingBubble = null;
+                showErrorBubble('网络错误，请确认后端已启动（python app.py）', Date.now());
+            } finally {
+                sendBtn.disabled = false;
+                userInput.focus();
+            }
+        }
+
+        // ===== localStorage 历史记录 =====
+        function getHistory() {
+            const data = localStorage.getItem('feynman_history');
+            return data ? JSON.parse(data) : [];
+        }
+
+        function generateTitle(messages) {
+            const firstUserMsg = messages.find(function(m) { return m.role === 'user'; });
+            if (firstUserMsg) {
+                return firstUserMsg.content.length > 20
+                    ? firstUserMsg.content.substring(0, 20) + '...'
+                    : firstUserMsg.content;
+            }
+            return '新对话';
+        }
+
+        function saveToHistory(messages) {
+            if (messages.length === 0) return;
+            const history = getHistory();
+            history.unshift({
+                id: Date.now(),
+                title: generateTitle(messages),
+                timestamp: new Date().toLocaleString('zh-CN'),
+                messages: messages
+            });
+            if (history.length > 50) history = history.slice(0, 50);
+            localStorage.setItem('feynman_history', JSON.stringify(history));
+        }
+
+        function removeHistoryItem(id) {
+            const history = getHistory().filter(function(item) { return item.id !== id; });
+            localStorage.setItem('feynman_history', JSON.stringify(history));
+        }
+
+        // ===== 暂存当前会话 =====
+        function saveCurrent() {
+            if (conversationHistory.length === 0) return;
+            localStorage.setItem('feynman_current', JSON.stringify(conversationHistory));
+        }
+
+        function clearCurrent() {
+            localStorage.removeItem('feynman_current');
+        }
+
+        function loadCurrent() {
+            const data = localStorage.getItem('feynman_current');
+            if (!data) return false;
+            const messages = JSON.parse(data);
+            if (messages.length === 0) return false;
+
+            chatMessages.innerHTML = '';
+            conversationHistory.length = 0;
+            lastMessageTimestamp = null;
+
+            messages.forEach(function(msg) {
+                conversationHistory.push({ role: msg.role, content: msg.content, timestamp: msg.timestamp });
+                if (msg.role === 'user') {
+                    addUserMessage(msg.content, msg.timestamp);
+                } else {
+                    appendTimeLabel(msg.timestamp);
+                    const div    = document.createElement('div');
+                    const bubble = document.createElement('div');
+                    div.classList.add('message', 'ai');
+                    bubble.classList.add('message-bubble');
+                    bubble.innerHTML = marked.parse(msg.content);
+                    div.appendChild(bubble);
+                    chatMessages.appendChild(div);
+
+                    // 补上复制按钮
+                    bubble.querySelectorAll('pre').forEach(function(pre) {
+                        const btn = document.createElement('button');
+                        btn.classList.add('copy-btn');
+                        btn.textContent = '复制';
+                        btn.addEventListener('click', function() {
+                            const code = pre.querySelector('code');
+                            const codeText = code ? code.textContent : pre.textContent;
+                            navigator.clipboard.writeText(codeText);
+                            btn.textContent = '已复制 ✓';
+                            btn.classList.add('copied');
+                            setTimeout(function() {
+                                btn.textContent = '复制';
+                                btn.classList.remove('copied');
+                            }, 2000);
+                        });
+                        pre.appendChild(btn);
+                    });
+                }
+            });
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            return true;
+        }
+
+        function loadSession(session) {
+            closeSidebar();
+            saveToHistory(conversationHistory);
+            chatMessages.innerHTML = '';
+            conversationHistory.length = 0;
+            lastMessageTimestamp = null;
+
+            session.messages.forEach(function(msg) {
+                conversationHistory.push({ role: msg.role, content: msg.content, timestamp: msg.timestamp });
+                if (msg.role === 'user') {
+                    addUserMessage(msg.content, msg.timestamp);
+                } else {
+                    appendTimeLabel(msg.timestamp);
+                    const div    = document.createElement('div');
+                    const bubble = document.createElement('div');
+                    div.classList.add('message', 'ai');
+                    bubble.classList.add('message-bubble');
+                    bubble.innerHTML = marked.parse(msg.content);
+                    div.appendChild(bubble);
+                    chatMessages.appendChild(div);
+                }
+            });
+
+            removeHistoryItem(session.id);
+            saveCurrent();
+            userInput.focus();
+        }
+
+        // ===== 新建会话 =====
+        function startNewChat() {
+            if (sendBtn.disabled) return;
+            if (!confirm('确定要新建会话吗？当前对话将清空')) return;
+            saveToHistory(conversationHistory);
+            conversationHistory.length = 0;
+            lastMessageTimestamp = null;
+            clearCurrent();
+            chatMessages.innerHTML = '';
+            appendTimeLabel(Date.now());
+            const div    = document.createElement('div');
+            const bubble = document.createElement('div');
+            div.classList.add('message', 'ai');
+            bubble.classList.add('message-bubble');
+            bubble.innerHTML = '你好！我是你的费曼学习导师 🎓<br>输入一个你不懂的概念，我用大白话给你讲明白！';
+            div.appendChild(bubble);
+            chatMessages.appendChild(div);
+            userInput.focus();
+        }
+
+        // ===== 侧边栏 =====
+        function openSidebar() {
+            renderHistoryList();
+            sidebar.classList.add('open');
+            overlay.classList.add('show');
+        }
+
+        function closeSidebar() {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('show');
+        }
+
+        function renderHistoryList() {
+            const history = getHistory();
+            historyList.innerHTML = '';
+            if (history.length === 0) {
+                historyList.innerHTML = '<div style="color:#888;text-align:center;padding:40px 0;font-size:14px;">暂无历史记录</div>';
+                return;
+            }
+            history.forEach(function(session) {
+                const item = document.createElement('div');
+                item.classList.add('history-item');
+                item.dataset.id = session.id;
+                item.innerHTML = '<div class="history-info"><div class="history-title">' + session.title + '</div><div class="history-time">' + session.timestamp + '</div></div><button class="delete-btn" title="删除">🗑</button>';
+                historyList.appendChild(item);
+            });
+        }
+
+        // 事件委托：处理侧边栏点击
+        historyList.addEventListener('click', function(e) {
+            if (e.target.classList.contains('delete-btn')) {
+                e.stopPropagation();
+                const item = e.target.closest('.history-item');
+                const id   = Number(item.dataset.id);
+                if (confirm('确定删除这条记录吗？')) {
+                    removeHistoryItem(id);
+                    renderHistoryList();
+                }
+                return;
+            }
+            const item = e.target.closest('.history-item');
+            if (item) {
+                const id = Number(item.dataset.id);
+                const history = getHistory();
+                const session = history.find(function(s) { return s.id === id; });
+                if (session) loadSession(session);
+            }
+        });
+
+        // 绑定事件
+        historyBtn.addEventListener('click', openSidebar);
+        sidebarCloseBtn.addEventListener('click', closeSidebar);
+        overlay.addEventListener('click', closeSidebar);
+        sendBtn.addEventListener('click', sendMessage);
+        newChatBtn.addEventListener('click', startNewChat);
+        userInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        // 关闭页面时暂存
+        window.addEventListener('beforeunload', saveCurrent);
+
+        // 打开页面时恢复会话
+        loadCurrent();
+    </script>
+</body>
+</html>
