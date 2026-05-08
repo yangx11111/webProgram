@@ -1,6 +1,11 @@
 from flask import Flask, request, jsonify, send_file, Response
 import requests as http_requests
 import json
+import base64
+import io
+import re
+import docx
+import pypdf
 
 app = Flask(__name__)
 
@@ -32,6 +37,66 @@ SYSTEM_PROMPT = '''
 【诊断反馈】：分析用户的回答。如果正确，指出其回答中最闪光的一点并给予肯定；如果有误或存在偏差，温柔且明确地指出逻辑漏洞所在。
 【认知改进】：针对用户的理解偏差进行纠正，或者用一句话将该知识点与更深层次的原理、其他相关概念串联起来，完成知识的巩固与升华。'''
 
+# ========== 文件内容解析 ==========
+def parse_file_content(file_info):
+    """根据 MIME 类型解析文件，返回提取的文本"""
+    name = file_info.get('name', 'file')
+    mime = file_info.get('type', '')
+    data_url = file_info.get('dataUrl', '')
+
+    # 从 data URL 提取 base64
+    match = re.match(r'data:[^;]*;base64,(.+)', data_url, re.DOTALL)
+    if not match:
+        return None
+    raw = base64.b64decode(match.group(1))
+
+    # 纯文本类型 → 直接 decode
+    text_types = ['text/', 'application/json', 'application/javascript',
+                  'application/xml', 'application/x-httpd-php']
+    if any(mime.startswith(t) for t in text_types):
+        try:
+            return raw.decode('utf-8')
+        except UnicodeDecodeError:
+            import chardet
+            enc = chardet.detect(raw)['encoding'] or 'gbk'
+            return raw.decode(enc, errors='replace')
+
+    # .docx
+    if mime.endswith('officedocument.wordprocessingml.document') or name.endswith('.docx'):
+        doc = docx.Document(io.BytesIO(raw))
+        paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+        return '\n\n'.join(paragraphs)
+
+    # .pdf
+    if mime == 'application/pdf' or name.endswith('.pdf'):
+        reader = pypdf.PdfReader(io.BytesIO(raw))
+        pages = []
+        for page in reader.pages:
+            text = page.extract_text()
+            if text:
+                pages.append(text)
+        return '\n\n'.join(pages)
+
+    # .xlsx
+    if 'spreadsheet' in mime or name.endswith('.xlsx'):
+        import openpyxl
+        wb = openpyxl.load_workbook(io.BytesIO(raw))
+        result = []
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            result.append(f'[Sheet: {sheet_name}]')
+            for row in ws.iter_rows(values_only=True):
+                row_str = '\t'.join(str(c) if c is not None else '' for c in row)
+                if row_str.strip():
+                    result.append(row_str)
+        return '\n'.join(result)
+
+    # 未知类型 → 尝试作为文本读取
+    try:
+        return raw.decode('utf-8')
+    except UnicodeDecodeError:
+        return None
+
 # ========== 跨域处理 ==========
 @app.after_request
 def add_cors_headers(response):
@@ -52,9 +117,23 @@ def chat():
 
     data = request.json
     user_messages = data.get('messages', [])
+    file_info = data.get('file')
 
-    if not user_messages:
+    if not user_messages and not file_info:
         return jsonify({'error': '消息不能为空'}), 400
+
+    # 解析文件内容，注入到最后一条用户消息
+    if file_info:
+        file_content = parse_file_content(file_info)
+        fname = file_info.get('name', '文件')
+        if file_content and user_messages:
+            prefix = f'[用户上传了文件: {fname}]\n文件内容如下：\n\n{file_content}\n\n---\n用户问题：'
+            user_messages[-1]['content'] = prefix + user_messages[-1]['content']
+        elif file_content and not user_messages:
+            user_messages = [{
+                'role': 'user',
+                'content': f'[用户上传了文件: {fname}]\n文件内容如下：\n\n{file_content}\n\n请帮我解读这个文件的内容。'
+            }]
 
     headers = {
         'Authorization': f'Bearer {API_KEY}',
