@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx playwright *)",
+      "Bash(where npx *)",
+      "Bash(dir \"C:\\\\Users\\\\xiaoy\\\\AppData\\\\Local\\\\npm-cache\\\\_npx\")",
+      "Bash(node *)",
+      "Bash(taskkill //F //IM python.exe //FI \"WINDOWTITLE eq *app.py*\")",
+      "Bash(pkill -f \"python app.py\")",
+      "Bash(netstat -ano)"
+    ]
+  }
+}
