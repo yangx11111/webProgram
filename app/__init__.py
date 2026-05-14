@@ -31,6 +31,12 @@ def create_app(config_name=None):
     from app.utils.errors import register_error_handlers
     register_error_handlers(app)
 
+    # 请求日志
+    @app.before_request
+    def log_request():
+        from flask import request
+        app.logger.info(f'{request.method} {request.path}')
+
     # CORS
     @app.after_request
     def add_cors_headers(response):
