@@ -97,7 +97,7 @@ python run.py
 │       ├── auth.js                # 登录/注册 UI
 │       ├── chat.js                # 消息 + SSE 流
 │       ├── history.js             # 对话列表 + API
-│       └── ui.js                  # DOM 工具 + Markdown 渲染
+│       └── ui.js                  # DOM 工具 + Markdown + LaTeX 渲染
 │
 ├── tests/                         # pytest 测试
 │   ├── conftest.py                # fixtures

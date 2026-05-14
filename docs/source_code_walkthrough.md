@@ -1191,7 +1191,7 @@ db.session.execute(text('SELECT 1'))
 3. 构造请求体：`{messages: [{role: 'user', content: '什么是递归？'}], conversation_id: 5}`
 4. `api.js` 的 `apiStream()` 发起 fetch 请求：`POST /api/chat`，带上 JWT token
 5. 收到 SSE 流后，`executeStreamRequest()` 逐块读取，更新 DOM 中的 AI 气泡
-6. 收到 `[DONE]` 后，调用 `finalizeStreamingBubble()` 做 Markdown 渲染
+6. 收到 `[DONE]` 后，调用 `finalizeStreamingBubble()` 先做 Markdown 渲染（`marked.parse()`），再做 LaTeX 渲染（`renderLatex()` 调用 KaTeX）
 
 ### 后端
 
