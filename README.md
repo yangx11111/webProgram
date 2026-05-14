@@ -89,15 +89,15 @@ python run.py
 │       ├── decorators.py          # @require_auth 装饰器
 │       └── errors.py              # 自定义异常 + 错误处理器
 │
-├── frontend/                      # 前端（模块化）
-│   ├── index.html                 # 主页面
-│   ├── css/style.css              # 样式
+├── frontend/                      # 前端（Gemini 风格模块化）
+│   ├── index.html                 # 主页面（欢迎页 + 药丸输入框 + 侧边栏）
+│   ├── css/style.css              # 样式（CSS 变量 + KaTeX + 响应式）
 │   └── js/
 │       ├── api.js                 # fetch 封装 + token 刷新
-│       ├── auth.js                # 登录/注册 UI
-│       ├── chat.js                # 消息 + SSE 流
-│       ├── history.js             # 对话列表 + API
-│       └── ui.js                  # DOM 工具 + Markdown + LaTeX 渲染
+│       ├── auth.js                # 登录/注册 UI + 侧边栏用户信息
+│       ├── chat.js                # 消息 + SSE 流 + textarea 自适应
+│       ├── history.js             # 对话列表 + API（白色侧边栏）
+│       └── ui.js                  # DOM + Markdown + LaTeX 渲染 + 跳动点动画
 │
 ├── tests/                         # pytest 测试
 │   ├── conftest.py                # fixtures

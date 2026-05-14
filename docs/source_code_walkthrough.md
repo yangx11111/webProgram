@@ -1186,12 +1186,12 @@ db.session.execute(text('SELECT 1'))
 
 ### 前端
 
-1. 用户在输入框键入"什么是递归？"，点击发送
-2. `chat.js` 的 `sendMessage()` 被调用
+1. 用户在输入框键入"什么是递归？"（textarea 自动增高），点击发送（➤ 圆形蓝色按钮）
+2. `chat.js` 的 `sendMessage()` 被调用 → 隐藏欢迎页
 3. 构造请求体：`{messages: [{role: 'user', content: '什么是递归？'}], conversation_id: 5}`
 4. `api.js` 的 `apiStream()` 发起 fetch 请求：`POST /api/chat`，带上 JWT token
-5. 收到 SSE 流后，`executeStreamRequest()` 逐块读取，更新 DOM 中的 AI 气泡
-6. 收到 `[DONE]` 后，调用 `finalizeStreamingBubble()` 先做 Markdown 渲染（`marked.parse()`），再做 LaTeX 渲染（`renderLatex()` 调用 KaTeX）
+5. 收到 SSE 流后，`executeStreamRequest()` 逐块读取，更新 AI 气泡
+6. 收到 `[DONE]` 后，调用 `finalizeStreamingBubble()` → `marked.parse()` → `renderLatex()`（KaTeX）→ 补上代码块复制按钮
 
 ### 后端
 
