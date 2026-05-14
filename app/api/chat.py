@@ -1,4 +1,4 @@
-from flask import Blueprint, request, Response, jsonify
+from flask import Blueprint, request, Response, jsonify, current_app
 from app.utils.decorators import require_auth
 from app.services.ai_client import stream_chat
 from app.services.file_parser import parse_file_content
@@ -47,16 +47,21 @@ def chat(current_user_id):
         last_content = user_messages[-1].get('content', '')
         add_message(conversation_id, 'user', last_content)
 
-    # 收集 AI 回复内容的容器
+    # 在 generator 外捕获配置值（generator 内不能访问 current_app）
+    api_key = current_app.config['MOONSHOT_API_KEY']
+    api_url = current_app.config['MOONSHOT_API_URL']
+    model = current_app.config['MOONSHOT_MODEL']
+
     ai_content_holder = {'text': ''}
 
     def generate():
-        for chunk, full_text in stream_chat(user_messages, file_content, file_name):
+        for chunk, full_text in stream_chat(
+            user_messages, api_key, api_url, model, file_content, file_name
+        ):
             if full_text is not None:
                 ai_content_holder['text'] = full_text
             yield chunk
 
-        # 流结束后保存 AI 回复
         if ai_content_holder['text']:
             add_message(conversation_id, 'assistant', ai_content_holder['text'])
 

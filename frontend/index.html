@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>费曼学习助手</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- 聊天容器 -->
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="header-left">
+                <button class="history-btn">📜</button>
+                <span>🎓 费曼学习助手</span>
+            </div>
+            <div class="header-right">
+                <span class="user-info" id="userInfo" style="display:none"></span>
+                <button class="auth-btn" id="loginBtn">登录</button>
+                <button class="new-chat-btn">＋ 新会话</button>
+            </div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            <div class="message ai">
+                <div class="message-bubble">
+                    你好！我是你的费曼学习导师<br>
+                    输入一个你不懂的概念，我用大白话给你讲明白！
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-input">
+            <div class="file-upload-bar">
+                <input type="file" id="fileInput" style="display:none" />
+                <button class="file-select-btn" id="fileSelectBtn">📎 选择文件</button>
+                <span class="file-info" id="fileInfo" style="display:none">
+                    <span class="file-name" id="fileName"></span>
+                    <button class="file-reselect-btn" id="fileReselectBtn">重新选择</button>
+                </span>
+            </div>
+            <div class="chat-input-row">
+                <input type="text" id="userInput" placeholder="输入你想了解的概念..." />
+                <button id="sendBtn">发送</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 侧边栏遮罩 -->
+    <div class="overlay" id="overlay"></div>
+
+    <!-- 历史记录侧边栏 -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <span>📜 历史记录</span>
+            <button class="sidebar-close-btn" id="sidebarCloseBtn">✕</button>
+        </div>
+        <div class="sidebar-list" id="historyList"></div>
+    </div>
+
+    <!-- 登录/注册弹窗 -->
+    <div class="auth-overlay" id="authOverlay"></div>
+    <div class="auth-modal" id="authModal">
+        <div class="auth-modal-header" id="authModalTitle">登录</div>
+        <div class="auth-modal-body">
+            <div id="authUsernameGroup">
+                <input type="text" id="authUsername" placeholder="用户名" autocomplete="username">
+            </div>
+            <input type="email" id="authEmail" placeholder="邮箱" autocomplete="email">
+            <input type="password" id="authPassword" placeholder="密码（至少6位）" autocomplete="current-password">
+            <button id="authSubmitBtn" onclick="handleAuthSubmit()">登录</button>
+            <div class="auth-modal-switch" id="authSwitch">
+                没有账号？<a href="javascript:void(0)">去注册</a>
+            </div>
+            <div class="auth-error" id="authError"></div>
+        </div>
+    </div>
+
+    <!-- JS 文件按依赖顺序加载 -->
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/ui.js"></script>
+    <script src="/static/js/auth.js"></script>
+    <script src="/static/js/history.js"></script>
+    <script src="/static/js/chat.js"></script>
+
+    <script>
+        // ===== 初始化 =====
+        // DOM 引用（全局）
+        const chatMessages   = document.getElementById('chatMessages');
+        const userInput      = document.getElementById('userInput');
+        const sendBtn        = document.getElementById('sendBtn');
+        const sidebar        = document.getElementById('sidebar');
+        const overlay        = document.getElementById('overlay');
+        const historyList    = document.getElementById('historyList');
+        const sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
+        const historyBtn     = document.querySelector('.history-btn');
+        const newChatBtn     = document.querySelector('.new-chat-btn');
+        const fileInput      = document.getElementById('fileInput');
+        const fileSelectBtn  = document.getElementById('fileSelectBtn');
+        const fileInfo       = document.getElementById('fileInfo');
+        const fileNameEl     = document.getElementById('fileName');
+        const fileReselectBtn = document.getElementById('fileReselectBtn');
+        const loginBtn       = document.getElementById('loginBtn');
+
+        window._lastMessageTimestamp = null;
+
+        // ===== 侧边栏 =====
+        function openSidebar() {
+            if (isLoggedIn()) {
+                loadConversationsFromServer();
+            }
+            sidebar.classList.add('open');
+            overlay.classList.add('show');
+        }
+        function closeSidebar() {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('show');
+        }
+
+        historyBtn.addEventListener('click', openSidebar);
+        sidebarCloseBtn.addEventListener('click', closeSidebar);
+        overlay.addEventListener('click', closeSidebar);
+
+        // ===== 发送/停止按钮 =====
+        sendBtn.addEventListener('click', function () {
+            if (window._isStreaming) {
+                stopGeneration();
+            } else {
+                sendMessage();
+            }
+        });
+
+        // ===== 新会话 =====
+        newChatBtn.addEventListener('click', startNewChat);
+
+        // ===== 键盘事件 =====
+        userInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !window._isStreaming) sendMessage();
+        });
+
+        // ===== 登录按钮 =====
+        loginBtn.addEventListener('click', handleAuthBtnClick);
+
+        // ===== 文件上传 =====
+        fileSelectBtn.addEventListener('click', function () {
+            fileInput.value = '';
+            fileInput.click();
+        });
+        fileInput.addEventListener('change', function () {
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                fileNameEl.textContent = file.name;
+                fileSelectBtn.style.display = 'none';
+                fileInfo.style.display = 'flex';
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    selectedFile = {
+                        name: file.name,
+                        type: file.type,
+                        dataUrl: e.target.result
+                    };
+                };
+                reader.readAsDataURL(file);
+            } else {
+                fileSelectBtn.style.display = '';
+                fileInfo.style.display = 'none';
+                selectedFile = null;
+            }
+        });
+        fileReselectBtn.addEventListener('click', function () {
+            fileInput.value = '';
+            fileInput.click();
+        });
+
+        // ===== 认证弹窗事件 =====
+        document.getElementById('authOverlay').addEventListener('click', hideAuthModal);
+        document.getElementById('authSwitch').addEventListener('click', function (e) {
+            if (e.target.tagName === 'A') {
+                const title = document.getElementById('authModalTitle');
+                showAuthModal(title.textContent === '登录' ? 'register' : 'login');
+            }
+        });
+        // 回车提交
+        document.getElementById('authPassword').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') handleAuthSubmit();
+        });
+        document.getElementById('authEmail').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                const title = document.getElementById('authModalTitle');
+                if (title.textContent === '注册') {
+                    document.getElementById('authUsername').focus();
+                } else {
+                    document.getElementById('authPassword').focus();
+                }
+            }
+        });
+
+        // ===== 刷新时保存草稿 =====
+        window.addEventListener('beforeunload', function () {
+            if (conversationHistory.length > 0) {
+                localStorage.setItem('feynman_current', JSON.stringify(conversationHistory));
+            }
+        });
+
+        // ===== 页面加载 =====
+        function init() {
+            updateAuthUI();
+            // 尝试从 localStorage 恢复未登录时的草稿
+            if (!isLoggedIn()) {
+                const draft = localStorage.getItem('feynman_current');
+                if (draft) {
+                    try {
+                        const msgs = JSON.parse(draft);
+                        chatMessages.innerHTML = '';
+                        conversationHistory.length = 0;
+                        window._lastMessageTimestamp = null;
+                        msgs.forEach(function (msg) {
+                            conversationHistory.push(msg);
+                            if (msg.role === 'user') {
+                                addUserMessage(msg.content, msg.timestamp);
+                            } else {
+                                renderAIHistoryBubble(msg);
+                            }
+                        });
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    } catch (e) { showWelcome(); }
+                }
+            } else {
+                // 已登录，加载最近的对话
+                loadConversationsFromServer();
+            }
+        }
+        init();
+    </script>
+</body>
+</html>
