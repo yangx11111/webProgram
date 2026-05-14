@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: feynman-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: feynman
+      MYSQL_USER: feynman
+      MYSQL_PASSWORD: feynman123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "feynman", "-pfeynman123"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: feynman-app
+    ports:
+      - "5001:5001"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=mysql+pymysql://feynman:feynman123@mysql:3306/feynman
+      - FLASK_ENV=development
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
