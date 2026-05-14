@@ -1,0 +1,27 @@
+# 敏感文件
+.env
+*.key
+*.pem
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# 开发工具
+.claude/
+.git/
+.vscode/
+.idea/
+
+# 系统文件
+Thumbs.db
+.DS_Store
+
+# 临时文件
+*.log
+*.tmp

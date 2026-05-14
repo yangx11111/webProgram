@@ -338,14 +338,24 @@ def index():
 ### 数据库建表
 
 ```python
-with app.app_context():
-    db.create_all()
+if not app.config.get('DEBUG', False):
+    app.logger.info('生产环境：请使用 flask db upgrade 初始化数据库')
+else:
+    with app.app_context():
+        db.create_all()
 ```
 
 | 概念 | 解释 |
 |------|------|
+| `app.config.get('DEBUG', False)` | 获取 DEBUG 配置，判断是否为开发/测试环境 |
 | `with app.app_context():` | 创建一个"应用上下文"，让 Flask 知道当前在哪个应用中 |
 | `db.create_all()` | 根据模型定义自动在数据库中创建所有表 |
+
+**为什么生产环境不用 `create_all()`？**
+`create_all()` 只能创建新表，**不能修改已存在的表**。如果你给 users 表加了一个新列，`create_all()` 不会更新生产数据库——你必须手动删表重建，数据就丢了。正确的做法是用 Flask-Migrate（Alembic）的迁移机制：
+1. 开发时执行 `flask db migrate -m "添加avatar列"` → 生成迁移脚本
+2. 部署时执行 `flask db upgrade` → 应用迁移，更新表结构
+3. 这样既更新了表结构，又保留了数据
 
 **什么是"应用上下文"（Application Context）？**  
 Flask 的一些功能（比如 `current_app`、`db.session`）需要知道"当前正在处理哪个应用"。应用上下文就是这样一个标记。在 `create_app()` 函数里，还没有请求进来，所以需要手动创建上下文。

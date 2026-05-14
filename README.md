@@ -64,7 +64,8 @@ python run.py
 ```
 ├── run.py                         # 应用入口
 ├── config.py                      # 三套配置（Dev/Test/Prod）
-├── Dockerfile                     # 多阶段构建
+├── Dockerfile                     # Docker 镜像构建
+├── .dockerignore                  # Docker 构建排除文件
 ├── docker-compose.yml             # MySQL + App
 │
 ├── app/                           # Flask 应用包

@@ -1,5 +1,5 @@
 import logging
-from flask import Flask, jsonify
+from flask import Flask
 from config import config_map
 
 
@@ -53,8 +53,11 @@ def create_app(config_name=None):
         import os
         return send_file(os.path.join(app.root_path, '..', 'frontend', 'index.html'))
 
-    # 数据库初始化（开发环境自动建表）
-    with app.app_context():
-        db.create_all()
+    # 数据库初始化（仅开发/测试环境自动建表，生产环境用 flask db upgrade）
+    if not app.config.get('DEBUG', False):
+        app.logger.info('生产环境：请使用 flask db upgrade 初始化数据库')
+    else:
+        with app.app_context():
+            db.create_all()
 
     return app
