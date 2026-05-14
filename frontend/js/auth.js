@@ -112,6 +112,7 @@ function updateAuthUI() {
     if (isLoggedIn()) {
         if (loginBtn) loginBtn.textContent = '退出';
         if (userInfo) userInfo.style.display = 'inline';
+        if (newChatBtn) newChatBtn.style.display = '';
     } else {
         if (loginBtn) loginBtn.textContent = '登录';
         if (userInfo) userInfo.style.display = 'none';

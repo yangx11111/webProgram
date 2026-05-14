@@ -1,6 +1,26 @@
 // ===== UI 工具函数 =====
 // DOM 操作、时间格式化、气泡渲染
 
+function renderLatex(html) {
+    // 先处理显示公式 $$...$$
+    var result = html.replace(/\$\$([\s\S]*?)\$\$/g, function (match, formula) {
+        try {
+            return katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false });
+        } catch (e) {
+            return match;
+        }
+    });
+    // 再处理行内公式 $...$（$$ 已经没了，剩下的单个 $ 就是行内公式）
+    result = result.replace(/\$([^$]+)\$/g, function (match, formula) {
+        try {
+            return katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false });
+        } catch (e) {
+            return match;
+        }
+    });
+    return result;
+}
+
 function formatTime(timestamp) {
     const now = Date.now();
     const diff = now - timestamp;
@@ -69,7 +89,7 @@ function updateStreamingBubble(bubble, newText) {
 
 function finalizeStreamingBubble(bubble, fullText) {
     bubble.classList.remove('streaming-cursor');
-    bubble.innerHTML = marked.parse(fullText);
+    bubble.innerHTML = renderLatex(marked.parse(fullText));
 
     bubble.querySelectorAll('pre').forEach(function (pre) {
         const btn = document.createElement('button');
@@ -158,7 +178,7 @@ function renderAIHistoryBubble(msg) {
     div.classList.add('message', 'ai');
     div.dataset.msgId = msg.timestamp;
     bubble.classList.add('message-bubble');
-    bubble.innerHTML = marked.parse(msg.content);
+    bubble.innerHTML = renderLatex(marked.parse(msg.content));
     div.appendChild(bubble);
     chatMessages.appendChild(div);
 
