@@ -4,13 +4,17 @@ import json
 import base64
 import io
 import re
+import os
+from dotenv import load_dotenv
 import docx
 import pypdf
+
+load_dotenv()
 
 app = Flask(__name__)
 
 # ========== 配置区 ==========
-API_KEY = 'sk-SOhqGfejR2w5Se9x6jxdNWhOcmQSoylOLckGUqgKWXTyWXnv'
+API_KEY = os.environ.get('MOONSHOT_API_KEY', '')
 API_URL = 'https://api.moonshot.cn/v1/chat/completions'
 MODEL = 'kimi-k2.6'
 
