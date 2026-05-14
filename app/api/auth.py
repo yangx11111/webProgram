@@ -69,12 +69,20 @@ def login():
 
 @auth_bp.route('/refresh', methods=['POST'])
 def refresh():
-    from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
+    from flask_jwt_extended import decode_token
     from app.utils.errors import AuthenticationError
 
+    data = request.json or {}
+    raw_token = data.get('refresh_token', '')
+
+    if not raw_token:
+        raise AuthenticationError('refresh_token 不能为空')
+
     try:
-        verify_jwt_in_request(refresh=True)
-        user_id = get_jwt_identity()
+        decoded = decode_token(raw_token)
+        if decoded.get('type') != 'refresh':
+            raise AuthenticationError('请提供 refresh_token')
+        user_id = decoded['sub']
         access_token = create_access_token(identity=user_id)
         return jsonify({'access_token': access_token})
     except Exception:

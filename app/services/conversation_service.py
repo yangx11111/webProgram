@@ -1,5 +1,5 @@
 from app.extensions import db
-from app.models import User, Conversation, Message
+from app.models import Conversation, Message
 from app.utils.errors import NotFoundError, PermissionDeniedError
 
 
@@ -29,7 +29,7 @@ def get_user_conversations(user_id, page=1, per_page=20):
 
 
 def get_conversation(conv_id, user_id):
-    conv = Conversation.query.get(conv_id)
+    conv = db.session.get(Conversation, conv_id)
     if not conv or not conv.is_active:
         raise NotFoundError('对话不存在')
     if conv.user_id != user_id:
@@ -60,20 +60,19 @@ def delete_conversation(conv_id, user_id):
 def add_message(conv_id, role, content):
     msg = Message(conversation_id=conv_id, role=role, content=content)
     db.session.add(msg)
-    # 更新对话的 updated_at
-    conv = Conversation.query.get(conv_id)
+    conv = db.session.get(Conversation, conv_id)
     if conv:
-        from datetime import datetime
-        conv.updated_at = datetime.utcnow()
+        from datetime import datetime, timezone
+        conv.updated_at = datetime.now(timezone.utc)
     db.session.commit()
     return msg
 
 
 def delete_message(msg_id, user_id):
-    msg = Message.query.get(msg_id)
+    msg = db.session.get(Message, msg_id)
     if not msg:
         raise NotFoundError('消息不存在')
-    conv = Conversation.query.get(msg.conversation_id)
+    conv = db.session.get(Conversation, msg.conversation_id)
     if not conv or conv.user_id != user_id:
         raise PermissionDeniedError('无权操作此消息')
     db.session.delete(msg)

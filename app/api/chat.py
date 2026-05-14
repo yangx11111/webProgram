@@ -47,10 +47,11 @@ def chat(current_user_id):
         last_content = user_messages[-1].get('content', '')
         add_message(conversation_id, 'user', last_content)
 
-    # 在 generator 外捕获配置值（generator 内不能访问 current_app）
+    # 在 generator 外捕获配置值和 app 引用（generator 内不能访问 current_app）
     api_key = current_app.config['MOONSHOT_API_KEY']
     api_url = current_app.config['MOONSHOT_API_URL']
     model = current_app.config['MOONSHOT_MODEL']
+    app_ctx = current_app._get_current_object()
 
     ai_content_holder = {'text': ''}
 
@@ -63,7 +64,8 @@ def chat(current_user_id):
             yield chunk
 
         if ai_content_holder['text']:
-            add_message(conversation_id, 'assistant', ai_content_holder['text'])
+            with app_ctx.app_context():
+                add_message(conversation_id, 'assistant', ai_content_holder['text'])
 
     return Response(
         generate(),
