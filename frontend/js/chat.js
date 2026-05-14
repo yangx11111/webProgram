@@ -233,10 +233,10 @@ async function sendMessage() {
     conversationHistory.push(userMsg);
 
     userInput.value = '';
+    userInput.style.height = 'auto';
     selectedFile = null;
     fileInput.value = '';
-    fileSelectBtn.style.display = '';
-    fileInfo.style.display = 'none';
+    fileChip.style.display = 'none';
 
     setStreamingState(true);
     await executeStreamRequest();

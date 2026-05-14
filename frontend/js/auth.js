@@ -1,7 +1,6 @@
 // ===== 登录/注册 UI =====
 
 function showAuthModal(mode) {
-    // mode: 'login' or 'register'
     const overlay = document.getElementById('authOverlay');
     const modal = document.getElementById('authModal');
     const title = document.getElementById('authModalTitle');
@@ -14,19 +13,18 @@ function showAuthModal(mode) {
     const errorEl = document.getElementById('authError');
 
     if (!overlay || !modal) return;
-
     errorEl.textContent = '';
     usernameInput.value = '';
     emailInput.value = '';
     passwordInput.value = '';
 
     if (mode === 'register') {
-        title.textContent = '注册';
+        title.textContent = '创建账号';
         usernameGroup.style.display = 'block';
         submitBtn.textContent = '注册';
         switchText.innerHTML = '已有账号？<a href="#">去登录</a>';
     } else {
-        title.textContent = '登录';
+        title.textContent = '欢迎回来';
         usernameGroup.style.display = 'none';
         submitBtn.textContent = '登录';
         switchText.innerHTML = '没有账号？<a href="#">去注册</a>';
@@ -52,7 +50,7 @@ async function handleAuthSubmit() {
     const submitBtn = document.getElementById('authSubmitBtn');
     const errorEl = document.getElementById('authError');
 
-    const isRegister = title.textContent === '注册';
+    const isRegister = title.textContent === '创建账号';
     const email = emailInput.value.trim();
     const password = passwordInput.value.trim();
 
@@ -85,12 +83,14 @@ async function handleAuthSubmit() {
         });
 
         const data = await resp.json();
-
         if (resp.ok) {
             setTokens(data.access_token, data.refresh_token);
+            // 保存用户信息到 localStorage
+            if (data.user) {
+                localStorage.setItem('feynman_user', JSON.stringify(data.user));
+            }
             updateAuthUI();
             hideAuthModal();
-            // 加载服务端的对话列表
             if (typeof loadConversationsFromServer === 'function') {
                 loadConversationsFromServer();
             }
@@ -106,17 +106,34 @@ async function handleAuthSubmit() {
 
 function updateAuthUI() {
     const loginBtn = document.getElementById('loginBtn');
-    const userInfo = document.getElementById('userInfo');
-    const newChatBtn = document.querySelector('.new-chat-btn');
+    const newChatBtn = document.getElementById('newChatBtn');
+    const sidebarFooter = document.getElementById('sidebarFooter');
+    const sidebarAvatar = document.getElementById('sidebarAvatar');
+    const sidebarEmail = document.getElementById('sidebarEmail');
 
     if (isLoggedIn()) {
-        if (loginBtn) loginBtn.textContent = '退出';
-        if (userInfo) userInfo.style.display = 'inline';
+        if (loginBtn) {
+            loginBtn.textContent = '退出';
+            loginBtn.classList.add('logged-in');
+        }
         if (newChatBtn) newChatBtn.style.display = '';
+
+        // 侧边栏用户信息
+        const userData = JSON.parse(localStorage.getItem('feynman_user') || '{}');
+        if (sidebarFooter) sidebarFooter.style.display = 'flex';
+        if (sidebarAvatar && userData.username) {
+            sidebarAvatar.textContent = userData.username.charAt(0).toUpperCase();
+        }
+        if (sidebarEmail && userData.email) {
+            sidebarEmail.textContent = userData.email;
+        }
     } else {
-        if (loginBtn) loginBtn.textContent = '登录';
-        if (userInfo) userInfo.style.display = 'none';
+        if (loginBtn) {
+            loginBtn.textContent = '登录';
+            loginBtn.classList.remove('logged-in');
+        }
         if (newChatBtn) newChatBtn.style.display = 'none';
+        if (sidebarFooter) sidebarFooter.style.display = 'none';
     }
 }
 
@@ -124,6 +141,7 @@ function handleAuthBtnClick() {
     if (isLoggedIn()) {
         if (confirm('确定要退出登录吗？')) {
             logout();
+            localStorage.removeItem('feynman_user');
             updateAuthUI();
             showWelcome();
         }

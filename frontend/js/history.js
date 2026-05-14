@@ -1,4 +1,4 @@
-// ===== 对话历史管理（服务端 + localStorage 兼容） =====
+// ===== 对话历史管理 =====
 
 let currentConversationId = null;
 
@@ -26,6 +26,9 @@ async function loadConversation(convId) {
             window._lastMessageTimestamp = null;
             currentConversationId = convId;
 
+            // 隐藏欢迎页
+            window._hideWelcome && window._hideWelcome();
+
             (data.messages || []).forEach(function (msg) {
                 const ts = Date.parse(msg.created_at) || Date.now();
                 conversationHistory.push({ role: msg.role, content: msg.content, timestamp: ts });
@@ -37,7 +40,9 @@ async function loadConversation(convId) {
             });
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
-    } catch (e) { showErrorBubble('加载对话失败', Date.now()); }
+    } catch (e) {
+        showErrorBubble('加载对话失败', Date.now());
+    }
 }
 
 async function deleteConversation(convId) {
@@ -48,32 +53,19 @@ async function deleteConversation(convId) {
     } catch (e) { /* ignore */ }
 }
 
-async function createServerConversation(title) {
-    if (!isLoggedIn()) return null;
-    try {
-        const resp = await apiPost('/api/conversations', { title: title || undefined });
-        if (resp.ok) {
-            const data = await resp.json();
-            return data.id;
-        }
-    } catch (e) { /* ignore */ }
-    return null;
-}
-
 function renderHistoryList() {
     historyList.innerHTML = '';
     const convs = window._serverConversations || [];
     if (convs.length === 0) {
-        historyList.innerHTML = '<div style="color:#888;text-align:center;padding:40px 0;font-size:14px;">暂无历史记录</div>';
+        historyList.innerHTML = '<div style="color:#9aa0a6;text-align:center;padding:40px 0;font-size:14px;">暂无历史记录</div>';
         return;
     }
     convs.forEach(function (conv) {
         const item = document.createElement('div');
         item.classList.add('history-item');
+        if (conv.id === currentConversationId) item.classList.add('active');
         item.dataset.id = conv.id;
-        const timeStr = conv.updated_at
-            ? formatTime(Date.parse(conv.updated_at))
-            : '';
+        const timeStr = conv.updated_at ? formatTime(Date.parse(conv.updated_at)) : '';
         item.innerHTML =
             '<div class="history-info">' +
             '<div class="history-title">' + escapeHtml(conv.title) + '</div>' +
@@ -108,7 +100,6 @@ historyList.addEventListener('click', function (e) {
     }
 });
 
-// 新建对话
 async function startNewChat() {
     if (window._isStreaming) return;
     if (!confirm('确定要新建会话吗？当前对话将清空')) return;
@@ -118,4 +109,6 @@ async function startNewChat() {
     currentConversationId = null;
     showWelcome();
     userInput.focus();
+    // 重置 textarea 高度
+    userInput.style.height = 'auto';
 }

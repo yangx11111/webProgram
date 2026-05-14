@@ -12,56 +12,68 @@
 <body>
     <!-- 聊天容器 -->
     <div class="chat-container">
+        <!-- 顶部栏 -->
         <div class="chat-header">
             <div class="header-left">
-                <button class="history-btn">📜</button>
-                <span>🎓 费曼学习助手</span>
+                <button class="menu-btn" id="menuBtn" title="历史记录">☰</button>
+                <span class="app-title">费曼学习助手</span>
             </div>
             <div class="header-right">
-                <span class="user-info" id="userInfo" style="display:none"></span>
                 <button class="auth-btn" id="loginBtn">登录</button>
-                <button class="new-chat-btn">＋ 新会话</button>
+                <button class="new-chat-btn" id="newChatBtn">＋ 新对话</button>
             </div>
         </div>
 
+        <!-- 消息区域（欢迎页 + 聊天内容动态填充） -->
         <div class="chat-messages" id="chatMessages">
-            <div class="message ai">
-                <div class="message-bubble">
-                    你好！我是你的费曼学习导师<br>
-                    输入一个你不懂的概念，我用大白话给你讲明白！
+            <div class="welcome-screen" id="welcomeScreen">
+                <div class="welcome-logo">🎓</div>
+                <div class="welcome-title">费曼学习助手</div>
+                <div class="welcome-subtitle">用大白话帮你搞懂任何概念</div>
+                <div class="suggestion-cards" id="suggestionCards">
+                    <div class="suggestion-card" data-prompt="什么是量子纠缠？用大白话解释一下">什么是量子纠缠？用大白话解释一下</div>
+                    <div class="suggestion-card" data-prompt="什么是递归？举一个生活中例子">什么是递归？举一个生活中例子</div>
+                    <div class="suggestion-card" data-prompt="给我解释一下牛顿第二定律">给我解释一下牛顿第二定律</div>
+                    <div class="suggestion-card" data-prompt="相对论到底在讲什么？">相对论到底在讲什么？</div>
                 </div>
             </div>
         </div>
 
+        <!-- 输入区（药丸风格） -->
         <div class="chat-input">
-            <div class="file-upload-bar">
-                <input type="file" id="fileInput" style="display:none" />
-                <button class="file-select-btn" id="fileSelectBtn">📎 选择文件</button>
-                <span class="file-info" id="fileInfo" style="display:none">
-                    <span class="file-name" id="fileName"></span>
-                    <button class="file-reselect-btn" id="fileReselectBtn">重新选择</button>
-                </span>
-            </div>
-            <div class="chat-input-row">
-                <input type="text" id="userInput" placeholder="输入你想了解的概念..." />
-                <button id="sendBtn">发送</button>
+            <div class="input-pill" id="inputPill">
+                <input type="file" id="fileInput" style="display:none" accept=".txt,.md,.docx,.pdf,.xlsx" />
+                <button class="file-pill-btn" id="filePillBtn" title="上传文件">📎</button>
+                <div class="file-chip" id="fileChip" style="display:none">
+                    <span id="fileChipName"></span>
+                    <button class="file-chip-remove" id="fileChipRemove">✕</button>
+                </div>
+                <textarea id="userInput" rows="1" placeholder="输入你想了解的概念，或上传文件..."></textarea>
+                <button class="send-btn" id="sendBtn" title="发送">➤</button>
             </div>
         </div>
     </div>
 
-    <!-- 侧边栏遮罩 -->
+    <!-- 遮罩 -->
     <div class="overlay" id="overlay"></div>
 
     <!-- 历史记录侧边栏 -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <span>📜 历史记录</span>
+            <span>历史记录</span>
             <button class="sidebar-close-btn" id="sidebarCloseBtn">✕</button>
         </div>
         <div class="sidebar-list" id="historyList"></div>
+        <div class="sidebar-footer" id="sidebarFooter" style="display:none">
+            <div class="user-avatar" id="sidebarAvatar"></div>
+            <div class="user-details">
+                <div class="user-email" id="sidebarEmail"></div>
+            </div>
+            <button class="logout-btn" id="sidebarLogoutBtn">退出</button>
+        </div>
     </div>
 
-    <!-- 登录/注册弹窗 -->
+    <!-- 认证弹窗 -->
     <div class="auth-overlay" id="authOverlay"></div>
     <div class="auth-modal" id="authModal">
         <div class="auth-modal-header" id="authModalTitle">登录</div>
@@ -79,7 +91,7 @@
         </div>
     </div>
 
-    <!-- JS 文件按依赖顺序加载 -->
+    <!-- JS -->
     <script src="/static/js/api.js"></script>
     <script src="/static/js/ui.js"></script>
     <script src="/static/js/auth.js"></script>
@@ -87,8 +99,7 @@
     <script src="/static/js/chat.js"></script>
 
     <script>
-        // ===== 初始化 =====
-        // DOM 引用（全局）
+        // ===== 初始化：DOM 引用 =====
         const chatMessages   = document.getElementById('chatMessages');
         const userInput      = document.getElementById('userInput');
         const sendBtn        = document.getElementById('sendBtn');
@@ -96,22 +107,25 @@
         const overlay        = document.getElementById('overlay');
         const historyList    = document.getElementById('historyList');
         const sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
-        const historyBtn     = document.querySelector('.history-btn');
-        const newChatBtn     = document.querySelector('.new-chat-btn');
+        const menuBtn        = document.getElementById('menuBtn');
+        const newChatBtn     = document.getElementById('newChatBtn');
         const fileInput      = document.getElementById('fileInput');
-        const fileSelectBtn  = document.getElementById('fileSelectBtn');
-        const fileInfo       = document.getElementById('fileInfo');
-        const fileNameEl     = document.getElementById('fileName');
-        const fileReselectBtn = document.getElementById('fileReselectBtn');
+        const filePillBtn    = document.getElementById('filePillBtn');
+        const fileChip       = document.getElementById('fileChip');
+        const fileChipName   = document.getElementById('fileChipName');
+        const fileChipRemove = document.getElementById('fileChipRemove');
         const loginBtn       = document.getElementById('loginBtn');
+        const welcomeScreen  = document.getElementById('welcomeScreen');
+        const sidebarFooter  = document.getElementById('sidebarFooter');
+        const sidebarAvatar  = document.getElementById('sidebarAvatar');
+        const sidebarEmail   = document.getElementById('sidebarEmail');
+        const sidebarLogoutBtn = document.getElementById('sidebarLogoutBtn');
 
         window._lastMessageTimestamp = null;
 
         // ===== 侧边栏 =====
         function openSidebar() {
-            if (isLoggedIn()) {
-                loadConversationsFromServer();
-            }
+            if (isLoggedIn()) { loadConversationsFromServer(); }
             sidebar.classList.add('open');
             overlay.classList.add('show');
         }
@@ -119,60 +133,67 @@
             sidebar.classList.remove('open');
             overlay.classList.remove('show');
         }
-
-        historyBtn.addEventListener('click', openSidebar);
+        menuBtn.addEventListener('click', openSidebar);
         sidebarCloseBtn.addEventListener('click', closeSidebar);
         overlay.addEventListener('click', closeSidebar);
 
-        // ===== 发送/停止按钮 =====
+        // ===== 发送/停止 =====
         sendBtn.addEventListener('click', function () {
-            if (window._isStreaming) {
-                stopGeneration();
-            } else {
+            if (window._isStreaming) { stopGeneration(); }
+            else { sendMessage(); }
+        });
+
+        // ===== 新对话 =====
+        newChatBtn.addEventListener('click', startNewChat);
+
+        // ===== 键盘：Enter 发送，Shift+Enter 换行 =====
+        userInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !e.shiftKey && !window._isStreaming) {
+                e.preventDefault();
                 sendMessage();
             }
         });
-
-        // ===== 新会话 =====
-        newChatBtn.addEventListener('click', startNewChat);
-
-        // ===== 键盘事件 =====
-        userInput.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter' && !window._isStreaming) sendMessage();
+        // textarea 自动增高
+        userInput.addEventListener('input', function () {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
         });
 
         // ===== 登录按钮 =====
         loginBtn.addEventListener('click', handleAuthBtnClick);
+        sidebarLogoutBtn.addEventListener('click', handleAuthBtnClick);
 
         // ===== 文件上传 =====
-        fileSelectBtn.addEventListener('click', function () {
+        filePillBtn.addEventListener('click', function () {
             fileInput.value = '';
             fileInput.click();
         });
         fileInput.addEventListener('change', function () {
             if (fileInput.files.length > 0) {
                 const file = fileInput.files[0];
-                fileNameEl.textContent = file.name;
-                fileSelectBtn.style.display = 'none';
-                fileInfo.style.display = 'flex';
+                fileChipName.textContent = file.name;
+                fileChip.style.display = 'inline-flex';
                 const reader = new FileReader();
                 reader.onload = function (e) {
-                    selectedFile = {
-                        name: file.name,
-                        type: file.type,
-                        dataUrl: e.target.result
-                    };
+                    selectedFile = { name: file.name, type: file.type, dataUrl: e.target.result };
                 };
                 reader.readAsDataURL(file);
-            } else {
-                fileSelectBtn.style.display = '';
-                fileInfo.style.display = 'none';
-                selectedFile = null;
             }
         });
-        fileReselectBtn.addEventListener('click', function () {
+        fileChipRemove.addEventListener('click', function () {
+            fileChip.style.display = 'none';
             fileInput.value = '';
-            fileInput.click();
+            selectedFile = null;
+        });
+
+        // ===== 建议卡片点击 =====
+        document.getElementById('suggestionCards').addEventListener('click', function (e) {
+            const card = e.target.closest('.suggestion-card');
+            if (card) {
+                userInput.value = card.dataset.prompt;
+                userInput.dispatchEvent(new Event('input'));
+                userInput.focus();
+            }
         });
 
         // ===== 认证弹窗事件 =====
@@ -183,19 +204,8 @@
                 showAuthModal(title.textContent === '登录' ? 'register' : 'login');
             }
         });
-        // 回车提交
         document.getElementById('authPassword').addEventListener('keydown', function (e) {
             if (e.key === 'Enter') handleAuthSubmit();
-        });
-        document.getElementById('authEmail').addEventListener('keydown', function (e) {
-            if (e.key === 'Enter') {
-                const title = document.getElementById('authModalTitle');
-                if (title.textContent === '注册') {
-                    document.getElementById('authUsername').focus();
-                } else {
-                    document.getElementById('authPassword').focus();
-                }
-            }
         });
 
         // ===== 刷新时保存草稿 =====
@@ -205,10 +215,15 @@
             }
         });
 
+        // ===== 隐藏欢迎页（开始聊天后调用） =====
+        window._hideWelcome = function () {
+            const ws = document.getElementById('welcomeScreen');
+            if (ws) ws.style.display = 'none';
+        };
+
         // ===== 页面加载 =====
         function init() {
             updateAuthUI();
-            // 尝试从 localStorage 恢复未登录时的草稿
             if (!isLoggedIn()) {
                 const draft = localStorage.getItem('feynman_current');
                 if (draft) {
@@ -225,11 +240,11 @@
                                 renderAIHistoryBubble(msg);
                             }
                         });
+                        window._hideWelcome();
                         chatMessages.scrollTop = chatMessages.scrollHeight;
-                    } catch (e) { showWelcome(); }
+                    } catch (e) {}
                 }
             } else {
-                // 已登录，加载最近的对话
                 loadConversationsFromServer();
             }
         }

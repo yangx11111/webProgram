@@ -1,22 +1,15 @@
 // ===== UI 工具函数 =====
-// DOM 操作、时间格式化、气泡渲染
 
 function renderLatex(html) {
-    // 先处理显示公式 $$...$$
     var result = html.replace(/\$\$([\s\S]*?)\$\$/g, function (match, formula) {
         try {
             return katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false });
-        } catch (e) {
-            return match;
-        }
+        } catch (e) { return match; }
     });
-    // 再处理行内公式 $...$（$$ 已经没了，剩下的单个 $ 就是行内公式）
     result = result.replace(/\$([^$]+)\$/g, function (match, formula) {
         try {
             return katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false });
-        } catch (e) {
-            return match;
-        }
+        } catch (e) { return match; }
     });
     return result;
 }
@@ -55,28 +48,60 @@ function appendTimeLabel(timestamp) {
     window._lastMessageTimestamp = timestamp;
 }
 
+// ===== 构建消息的 HTML 骨架 =====
+function createMessageDiv(role, timestamp) {
+    const div = document.createElement('div');
+    div.classList.add('message', role);
+    div.dataset.msgId = timestamp;
+
+    // 头像
+    const avatar = document.createElement('div');
+    avatar.classList.add('message-avatar');
+    if (role === 'ai') {
+        avatar.textContent = 'F';
+    } else {
+        avatar.textContent = '我';
+    }
+    div.appendChild(avatar);
+
+    // 消息体容器
+    const body = document.createElement('div');
+    body.classList.add('message-body');
+    div.appendChild(body);
+
+    return { div, body };
+}
+
+// ===== 用户消息 =====
 function addUserMessage(text, timestamp) {
     appendTimeLabel(timestamp);
-    const div = document.createElement('div');
-    div.classList.add('message', 'user');
-    div.dataset.msgId = timestamp;
+    window._hideWelcome && window._hideWelcome();
+
+    const { div, body } = createMessageDiv('user', timestamp);
     const bubble = document.createElement('div');
     bubble.classList.add('message-bubble');
     bubble.textContent = text;
     attachEditButton(bubble, timestamp);
-    div.appendChild(bubble);
+    body.appendChild(bubble);
     chatMessages.appendChild(div);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
+// ===== 流式气泡 =====
 function createStreamingBubble(timestamp) {
     appendTimeLabel(timestamp);
-    const div = document.createElement('div');
+    window._hideWelcome && window._hideWelcome();
+
+    const { div, body } = createMessageDiv('ai', timestamp);
     const bubble = document.createElement('div');
-    div.classList.add('message', 'ai');
-    div.dataset.msgId = timestamp;
-    bubble.classList.add('message-bubble', 'streaming-cursor');
-    div.appendChild(bubble);
+    bubble.classList.add('message-bubble');
+
+    // 跳动点动画
+    const dots = document.createElement('div');
+    dots.classList.add('typing-dots');
+    dots.innerHTML = '<span></span><span></span><span></span>';
+    bubble.appendChild(dots);
+    body.appendChild(bubble);
     chatMessages.appendChild(div);
     chatMessages.scrollTop = chatMessages.scrollHeight;
     return { div, bubble };
@@ -88,9 +113,9 @@ function updateStreamingBubble(bubble, newText) {
 }
 
 function finalizeStreamingBubble(bubble, fullText) {
-    bubble.classList.remove('streaming-cursor');
     bubble.innerHTML = renderLatex(marked.parse(fullText));
 
+    // 代码块复制按钮
     bubble.querySelectorAll('pre').forEach(function (pre) {
         const btn = document.createElement('button');
         btn.classList.add('copy-btn');
@@ -106,6 +131,7 @@ function finalizeStreamingBubble(bubble, fullText) {
         pre.appendChild(btn);
     });
 
+    // 复制整个回复
     const replyBtn = document.createElement('button');
     replyBtn.classList.add('reply-copy-btn');
     replyBtn.textContent = '📋';
@@ -127,16 +153,17 @@ function finalizeStreamingBubble(bubble, fullText) {
 
 function showErrorBubble(text, timestamp) {
     appendTimeLabel(timestamp);
-    const div = document.createElement('div');
+    const { div, body } = createMessageDiv('ai', timestamp);
     const bubble = document.createElement('div');
-    div.classList.add('message', 'ai');
     bubble.classList.add('message-bubble');
-    bubble.textContent = text;
-    div.appendChild(bubble);
+    bubble.textContent = '⚠️ ' + text;
+    bubble.style.color = '#e74c3c';
+    body.appendChild(bubble);
     chatMessages.appendChild(div);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
+// ===== 气泡按钮 =====
 function attachEditButton(bubble, timestamp) {
     const editBtn = document.createElement('button');
     editBtn.classList.add('user-edit-btn');
@@ -163,23 +190,22 @@ function attachRegenButton(bubble, timestamp) {
 function setStreamingState(streaming) {
     window._isStreaming = streaming;
     if (streaming) {
-        sendBtn.textContent = '停止';
+        sendBtn.textContent = '◼';
         sendBtn.classList.add('stop-btn');
     } else {
-        sendBtn.textContent = '发送';
+        sendBtn.textContent = '➤';
         sendBtn.classList.remove('stop-btn');
     }
 }
 
+// ===== 历史消息渲染 =====
 function renderAIHistoryBubble(msg) {
     appendTimeLabel(msg.timestamp);
-    const div = document.createElement('div');
+    const { div, body } = createMessageDiv('ai', msg.timestamp);
     const bubble = document.createElement('div');
-    div.classList.add('message', 'ai');
-    div.dataset.msgId = msg.timestamp;
     bubble.classList.add('message-bubble');
     bubble.innerHTML = renderLatex(marked.parse(msg.content));
-    div.appendChild(bubble);
+    body.appendChild(bubble);
     chatMessages.appendChild(div);
 
     bubble.querySelectorAll('pre').forEach(function (pre) {
@@ -201,12 +227,29 @@ function renderAIHistoryBubble(msg) {
 
 function showWelcome() {
     chatMessages.innerHTML = '';
-    appendTimeLabel(Date.now());
-    const div = document.createElement('div');
-    const bubble = document.createElement('div');
-    div.classList.add('message', 'ai');
-    bubble.classList.add('message-bubble');
-    bubble.innerHTML = '你好！我是你的费曼学习导师<br>输入一个你不懂的概念，我用大白话给你讲明白！';
-    div.appendChild(bubble);
-    chatMessages.appendChild(div);
+    window._lastMessageTimestamp = null;
+    const ws = document.createElement('div');
+    ws.classList.add('welcome-screen');
+    ws.id = 'welcomeScreen';
+    ws.innerHTML = '' +
+        '<div class="welcome-logo">🎓</div>' +
+        '<div class="welcome-title">费曼学习助手</div>' +
+        '<div class="welcome-subtitle">用大白话帮你搞懂任何概念</div>' +
+        '<div class="suggestion-cards" id="suggestionCards">' +
+        '<div class="suggestion-card" data-prompt="什么是量子纠缠？用大白话解释一下">什么是量子纠缠？用大白话解释一下</div>' +
+        '<div class="suggestion-card" data-prompt="什么是递归？举一个生活中例子">什么是递归？举一个生活中例子</div>' +
+        '<div class="suggestion-card" data-prompt="给我解释一下牛顿第二定律">给我解释一下牛顿第二定律</div>' +
+        '<div class="suggestion-card" data-prompt="相对论到底在讲什么？">相对论到底在讲什么？</div>' +
+        '</div>';
+    chatMessages.appendChild(ws);
+
+    // 重新绑定建议卡片事件
+    document.getElementById('suggestionCards').addEventListener('click', function (e) {
+        const card = e.target.closest('.suggestion-card');
+        if (card) {
+            userInput.value = card.dataset.prompt;
+            userInput.dispatchEvent(new Event('input'));
+            userInput.focus();
+        }
+    });
 }
